@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片处理工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 图片上传区域 -->
+        <div class="upload-section">
+            <input type="file" id="imageInput" accept="image/*">
+            <label for="imageInput" class="upload-btn">选择图片</label>
+        </div>
+
+        <!-- 主内容区域：左侧控制面板，右侧预览 -->
+        <div class="main-content">
+            <!-- 控制面板 - 左侧 -->
+        <div class="control-panel">
+            <!-- 压缩选项 -->
+            <div class="control-group">
+                <h3>📦 压缩</h3>
+                <div class="control-item">
+                    <label>
+                        <input type="radio" name="compressMode" value="quality" checked>
+                        按质量压缩
+                    </label>
+                    <label>压缩质量 (<span id="qualityValue">80</span>%):</label>
+                    <input type="range" id="quality" min="1" max="100" value="80">
+                </div>
+                <div class="control-item">
+                    <label>
+                        <input type="radio" name="compressMode" value="size">
+                        压缩到指定大小
+                    </label>
+                    <label>目标大小 (KB):</label>
+                    <input type="number" id="targetSize" min="1" value="500">
+                </div>
+            </div>
+
+            <!-- 尺寸调整 -->
+            <div class="control-group">
+                <h3>📐 尺寸</h3>
+                <div class="control-item">
+                    <label>
+                        <input type="radio" name="resizeMode" value="percent" checked>
+                        按比例缩放
+                    </label>
+                    <label>缩放比例 (<span id="scaleValue">100</span>%):</label>
+                    <input type="range" id="scale" min="10" max="200" value="100">
+                </div>
+                <div class="control-item">
+                    <label>
+                        <input type="radio" name="resizeMode" value="fixed">
+                        固定尺寸
+                    </label>
+                    <div class="size-inputs">
+                        <label>宽度 (px):</label>
+                        <input type="number" id="width" min="1" value="800">
+                        <label>高度 (px):</label>
+                        <input type="number" id="height" min="1" value="600">
+                        <label>
+                            <input type="checkbox" id="keepRatio" checked>
+                            保持宽高比
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 美颜和滤镜 -->
+            <div class="control-group">
+                <h3>✨ 美颜 & 滤镜</h3>
+                <div class="control-item">
+                    <label>美白 (<span id="brightnessValue">0</span>):</label>
+                    <input type="range" id="brightness" min="-50" max="50" value="0">
+                </div>
+                <div class="control-item">
+                    <label>对比度 (<span id="contrastValue">0</span>):</label>
+                    <input type="range" id="contrast" min="-50" max="50" value="0">
+                </div>
+                <div class="control-item">
+                    <label>饱和度 (<span id="saturationValue">0</span>):</label>
+                    <input type="range" id="saturation" min="-100" max="100" value="0">
+                </div>
+                <div class="control-item">
+                    <label>锐化 (<span id="sharpnessValue">0</span>):</label>
+                    <input type="range" id="sharpness" min="0" max="100" value="0">
+                </div>
+                <div class="control-item">
+                    <label>模糊 (<span id="blurValue">0</span>):</label>
+                    <input type="range" id="blur" min="0" max="10" value="0">
+                </div>
+                <div class="control-item">
+                    <label>滤镜效果:</label>
+                    <select id="filter">
+                        <option value="none">无</option>
+                        <option value="grayscale">黑白</option>
+                        <option value="sepia">复古</option>
+                        <option value="vintage">怀旧</option>
+                        <option value="warm">暖色调</option>
+                        <option value="cool">冷色调</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="action-buttons">
+                <button id="processBtn" class="btn btn-primary">立即处理</button>
+                <button id="resetBtn" class="btn btn-secondary">重置参数</button>
+                <button id="downloadBtn" class="btn btn-success">下载图片</button>
+            </div>
+            <p style="text-align: center; color: #666; margin-top: 10px; font-size: 0.85em; line-height: 1.4;">
+                💡 修改参数后，会延迟2秒自动处理
+            </p>
+            <div id="processingIndicator" class="processing-indicator" style="display: none;">
+                正在处理中，请稍候...
+            </div>
+        </div>
+
+            <!-- 预览区域 - 右侧 -->
+            <div class="preview-section">
+                <div class="preview-box">
+                    <h3>📷 原图</h3>
+                    <canvas id="originalCanvas"></canvas>
+                    <p id="originalInfo" class="image-info"></p>
+                </div>
+                <div class="preview-box">
+                    <h3>✨ 处理后</h3>
+                    <canvas id="processedCanvas"></canvas>
+                    <p id="processedInfo" class="image-info"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
