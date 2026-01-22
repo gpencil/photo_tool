@@ -104,6 +104,90 @@
                 </div>
             </div>
 
+            <!-- 水印功能 -->
+            <div class="control-group">
+                <h3>💧 水印</h3>
+                <div class="control-item">
+                    <label>
+                        <input type="checkbox" id="enableWatermark">
+                        启用水印
+                    </label>
+                </div>
+                <div class="control-item">
+                    <label>水印类型:</label>
+                    <select id="watermarkType">
+                        <option value="text">文字水印</option>
+                        <option value="image">图片水印</option>
+                    </select>
+                </div>
+                <div class="control-item" id="watermarkTextGroup">
+                    <label>水印文字:</label>
+                    <input type="text" id="watermarkText" value="水印" placeholder="输入水印文字">
+                </div>
+                <div class="control-item" id="watermarkImageGroup" style="display: none;">
+                    <label>水印图片:</label>
+                    <input type="file" id="watermarkImage" accept="image/*">
+                </div>
+                <div class="control-item">
+                    <label>位置:</label>
+                    <select id="watermarkPosition">
+                        <option value="top-left">左上</option>
+                        <option value="top-right">右上</option>
+                        <option value="bottom-left">左下</option>
+                        <option value="bottom-right" selected>右下</option>
+                        <option value="center">居中</option>
+                        <option value="tile">平铺</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>透明度 (<span id="watermarkOpacityValue">0.3</span>):</label>
+                    <input type="range" id="watermarkOpacity" min="0" max="1" step="0.1" value="0.3">
+                </div>
+                <div class="control-item">
+                    <label>大小 (<span id="watermarkSizeValue">20</span>px):</label>
+                    <input type="range" id="watermarkSize" min="10" max="100" value="20">
+                </div>
+            </div>
+
+            <!-- 去除水印 -->
+            <div class="control-group">
+                <h3>🧹 去除水印</h3>
+                <div class="control-item">
+                    <label>
+                        <input type="checkbox" id="enableRemoveWatermark">
+                        启用去水印
+                    </label>
+                </div>
+                <div class="control-item">
+                    <label>选择区域:</label>
+                    <button id="selectWatermarkArea" class="btn btn-secondary" style="margin-top: 5px;">框选水印区域</button>
+                    <p style="font-size: 0.85em; color: #666; margin-top: 5px;">点击按钮后在原图上拖拽选择水印区域</p>
+                </div>
+                <div class="control-item" id="watermarkAreaAdjust" style="display: none;">
+                    <label>区域微调:</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px;">
+                        <button id="moveUp" class="btn-adjust">↑ 上移</button>
+                        <button id="moveDown" class="btn-adjust">↓ 下移</button>
+                        <button id="moveLeft" class="btn-adjust">← 左移</button>
+                        <button id="moveRight" class="btn-adjust">→ 右移</button>
+                        <button id="expandArea" class="btn-adjust">+ 放大</button>
+                        <button id="shrinkArea" class="btn-adjust">- 缩小</button>
+                    </div>
+                </div>
+                <div class="control-item">
+                    <label>修复模式:</label>
+                    <select id="removeWatermarkMode">
+                        <option value="blur">边缘扩散</option>
+                        <option value="inpaint">智能填充</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>修复强度 (<span id="removeIntensityValue">5</span>):</label>
+                    <input type="range" id="removeIntensity" min="1" max="10" value="5">
+                    <p style="font-size: 0.85em; color: #666; margin-top: 5px;">强度越高，修复范围越大，效果越平滑</p>
+                </div>
+            </div>
+
             <!-- 操作按钮 -->
             <div class="action-buttons">
                 <button id="processBtn" class="btn btn-primary">立即处理</button>

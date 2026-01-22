@@ -5,6 +5,9 @@ let processedCanvas = document.getElementById('processedCanvas');
 let originalCtx = originalCanvas.getContext('2d');
 let processedCtx = processedCanvas.getContext('2d');
 let autoProcessTimer = null;
+let watermarkImageObj = null;
+let watermarkArea = null;
+let isSelectingWatermark = false;
 
 // DOM 元素
 const imageInput = document.getElementById('imageInput');
@@ -20,6 +23,11 @@ const contrastSlider = document.getElementById('contrast');
 const saturationSlider = document.getElementById('saturation');
 const sharpnessSlider = document.getElementById('sharpness');
 const blurSlider = document.getElementById('blur');
+
+// 水印相关元素
+const watermarkOpacitySlider = document.getElementById('watermarkOpacity');
+const watermarkSizeSlider = document.getElementById('watermarkSize');
+const removeIntensitySlider = document.getElementById('removeIntensity');
 
 // 防抖函数 - 延迟2秒自动处理
 function debounceAutoProcess() {
@@ -77,6 +85,21 @@ blurSlider.addEventListener('input', (e) => {
     debounceAutoProcess();
 });
 
+watermarkOpacitySlider.addEventListener('input', (e) => {
+    document.getElementById('watermarkOpacityValue').textContent = e.target.value;
+    debounceAutoProcess();
+});
+
+watermarkSizeSlider.addEventListener('input', (e) => {
+    document.getElementById('watermarkSizeValue').textContent = e.target.value;
+    debounceAutoProcess();
+});
+
+removeIntensitySlider.addEventListener('input', (e) => {
+    document.getElementById('removeIntensityValue').textContent = e.target.value;
+    debounceAutoProcess();
+});
+
 // 宽度输入框变化时更新高度（如果保持宽高比）
 document.getElementById('width').addEventListener('input', function() {
     if (document.getElementById('keepRatio').checked && originalImage) {
@@ -99,6 +122,121 @@ document.getElementById('height').addEventListener('input', function() {
 document.getElementById('targetSize').addEventListener('input', debounceAutoProcess);
 document.getElementById('filter').addEventListener('change', debounceAutoProcess);
 document.getElementById('keepRatio').addEventListener('change', debounceAutoProcess);
+
+// 水印控件监听
+document.getElementById('enableWatermark').addEventListener('change', debounceAutoProcess);
+document.getElementById('watermarkType').addEventListener('change', function() {
+    if (this.value === 'text') {
+        document.getElementById('watermarkTextGroup').style.display = 'block';
+        document.getElementById('watermarkImageGroup').style.display = 'none';
+    } else {
+        document.getElementById('watermarkTextGroup').style.display = 'none';
+        document.getElementById('watermarkImageGroup').style.display = 'block';
+    }
+    debounceAutoProcess();
+});
+document.getElementById('watermarkText').addEventListener('input', debounceAutoProcess);
+document.getElementById('watermarkPosition').addEventListener('change', debounceAutoProcess);
+document.getElementById('enableRemoveWatermark').addEventListener('change', function() {
+    if (this.checked) {
+        document.getElementById('enableWatermark').checked = false;
+    }
+    debounceAutoProcess();
+});
+
+// 水印图片上传
+document.getElementById('watermarkImage').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                watermarkImageObj = img;
+                debounceAutoProcess();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// 选择水印区域
+document.getElementById('selectWatermarkArea').addEventListener('click', function() {
+    if (!originalImage) {
+        alert('请先上传图片！');
+        return;
+    }
+    isSelectingWatermark = true;
+    alert('请在原图上拖拽鼠标框选水印区域');
+});
+
+// 区域微调按钮
+document.getElementById('moveUp').addEventListener('click', function() {
+    if (watermarkArea) {
+        watermarkArea.y = Math.max(0, watermarkArea.y - 5);
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('moveDown').addEventListener('click', function() {
+    if (watermarkArea && originalImage) {
+        watermarkArea.y = Math.min(originalImage.height - watermarkArea.height, watermarkArea.y + 5);
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('moveLeft').addEventListener('click', function() {
+    if (watermarkArea) {
+        watermarkArea.x = Math.max(0, watermarkArea.x - 5);
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('moveRight').addEventListener('click', function() {
+    if (watermarkArea && originalImage) {
+        watermarkArea.x = Math.min(originalImage.width - watermarkArea.width, watermarkArea.x + 5);
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('expandArea').addEventListener('click', function() {
+    if (watermarkArea && originalImage) {
+        const newWidth = Math.min(originalImage.width - watermarkArea.x, watermarkArea.width + 10);
+        const newHeight = Math.min(originalImage.height - watermarkArea.y, watermarkArea.height + 10);
+        watermarkArea.width = newWidth;
+        watermarkArea.height = newHeight;
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('shrinkArea').addEventListener('click', function() {
+    if (watermarkArea) {
+        watermarkArea.width = Math.max(10, watermarkArea.width - 10);
+        watermarkArea.height = Math.max(10, watermarkArea.height - 10);
+        updateWatermarkAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+// 更新水印区域显示
+function updateWatermarkAreaDisplay() {
+    if (!watermarkArea || !originalImage) return;
+
+    displayOriginalImage();
+    originalCtx.strokeStyle = 'red';
+    originalCtx.lineWidth = 2;
+    originalCtx.strokeRect(watermarkArea.x, watermarkArea.y, watermarkArea.width, watermarkArea.height);
+
+    // 绘制半透明填充
+    originalCtx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+    originalCtx.fillRect(watermarkArea.x, watermarkArea.y, watermarkArea.width, watermarkArea.height);
+}
 
 // 监听单选按钮变化
 document.querySelectorAll('input[name="compressMode"]').forEach(radio => {
@@ -323,6 +461,24 @@ function processImageInternal() {
     processedCanvas.height = tempCanvas.height;
     processedCtx.drawImage(tempCanvas, 0, 0);
 
+    // 第六步：去除水印（如果启用）
+    if (document.getElementById('enableRemoveWatermark').checked && watermarkArea) {
+        const removedCanvas = removeWatermark(processedCanvas, originalImage.width, originalImage.height);
+        processedCanvas.width = removedCanvas.width;
+        processedCanvas.height = removedCanvas.height;
+        processedCtx.clearRect(0, 0, processedCanvas.width, processedCanvas.height);
+        processedCtx.drawImage(removedCanvas, 0, 0);
+    }
+
+    // 第七步：添加水印（如果启用）
+    if (document.getElementById('enableWatermark').checked) {
+        const watermarkedCanvas = addWatermark(processedCanvas);
+        processedCanvas.width = watermarkedCanvas.width;
+        processedCanvas.height = watermarkedCanvas.height;
+        processedCtx.clearRect(0, 0, processedCanvas.width, processedCanvas.height);
+        processedCtx.drawImage(watermarkedCanvas, 0, 0);
+    }
+
     // 按大小压缩（如果选择了这个选项）
     const compressMode = document.querySelector('input[name="compressMode"]:checked').value;
     if (compressMode === 'size') {
@@ -462,3 +618,393 @@ function compressToTargetSize(targetKB) {
     };
     img.src = dataUrl;
 }
+
+// 添加水印功能
+function addWatermark(canvas) {
+    const enableWatermark = document.getElementById('enableWatermark').checked;
+    if (!enableWatermark) return canvas;
+
+    const watermarkType = document.getElementById('watermarkType').value;
+    const position = document.getElementById('watermarkPosition').value;
+    const opacity = parseFloat(document.getElementById('watermarkOpacity').value);
+    const size = parseInt(document.getElementById('watermarkSize').value);
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(canvas, 0, 0);
+
+    tempCtx.globalAlpha = opacity;
+
+    if (watermarkType === 'text') {
+        const text = document.getElementById('watermarkText').value || '水印';
+        tempCtx.font = `${size}px Arial`;
+        tempCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        tempCtx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        tempCtx.lineWidth = 1;
+
+        if (position === 'tile') {
+            // 平铺水印
+            tempCtx.save();
+            tempCtx.translate(canvas.width / 2, canvas.height / 2);
+            tempCtx.rotate(-Math.PI / 6); // 旋转30度
+
+            const metrics = tempCtx.measureText(text);
+            const textWidth = metrics.width;
+            const textHeight = size;
+            const spacingX = textWidth + 100;
+            const spacingY = textHeight + 80;
+
+            for (let y = -canvas.height; y < canvas.height; y += spacingY) {
+                for (let x = -canvas.width; x < canvas.width; x += spacingX) {
+                    tempCtx.strokeText(text, x, y);
+                    tempCtx.fillText(text, x, y);
+                }
+            }
+            tempCtx.restore();
+        } else {
+            const coords = getWatermarkPosition(canvas, text, size, position, 'text');
+            tempCtx.strokeText(text, coords.x, coords.y);
+            tempCtx.fillText(text, coords.x, coords.y);
+        }
+    } else if (watermarkType === 'image' && watermarkImageObj) {
+        const scale = size / 20; // 基于20px基准缩放
+        const wmWidth = watermarkImageObj.width * scale;
+        const wmHeight = watermarkImageObj.height * scale;
+
+        if (position === 'tile') {
+            // 平铺水印图片
+            for (let y = 0; y < canvas.height; y += wmHeight + 50) {
+                for (let x = 0; x < canvas.width; x += wmWidth + 50) {
+                    tempCtx.drawImage(watermarkImageObj, x, y, wmWidth, wmHeight);
+                }
+            }
+        } else {
+            const coords = getWatermarkPosition(canvas, null, size, position, 'image', wmWidth, wmHeight);
+            tempCtx.drawImage(watermarkImageObj, coords.x, coords.y, wmWidth, wmHeight);
+        }
+    }
+
+    tempCtx.globalAlpha = 1.0;
+    return tempCanvas;
+}
+
+// 获取水印位置
+function getWatermarkPosition(canvas, text, size, position, type, imgWidth, imgHeight) {
+    const padding = 20;
+    let width, height;
+
+    if (type === 'text') {
+        const tempCtx = document.createElement('canvas').getContext('2d');
+        tempCtx.font = `${size}px Arial`;
+        const metrics = tempCtx.measureText(text);
+        width = metrics.width;
+        height = size;
+    } else {
+        width = imgWidth;
+        height = imgHeight;
+    }
+
+    const positions = {
+        'top-left': { x: padding, y: padding + height },
+        'top-right': { x: canvas.width - width - padding, y: padding + height },
+        'bottom-left': { x: padding, y: canvas.height - padding },
+        'bottom-right': { x: canvas.width - width - padding, y: canvas.height - padding },
+        'center': { x: (canvas.width - width) / 2, y: (canvas.height + height) / 2 }
+    };
+
+    return positions[position] || positions['bottom-right'];
+}
+
+// 去除水印功能
+function removeWatermark(canvas, originalWidth, originalHeight) {
+    const enableRemove = document.getElementById('enableRemoveWatermark').checked;
+    if (!enableRemove || !watermarkArea) return canvas;
+
+    const mode = document.getElementById('removeWatermarkMode').value;
+    const intensity = parseInt(document.getElementById('removeIntensity').value);
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(canvas, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // 计算缩放后的水印区域坐标
+    const scaleX = canvas.width / originalWidth;
+    const scaleY = canvas.height / originalHeight;
+
+    const scaledArea = {
+        x: Math.round(watermarkArea.x * scaleX),
+        y: Math.round(watermarkArea.y * scaleY),
+        width: Math.round(watermarkArea.width * scaleX),
+        height: Math.round(watermarkArea.height * scaleY)
+    };
+
+    if (mode === 'blur') {
+        // 使用边缘扩散
+        blurWatermarkArea(imageData, scaledArea, intensity);
+    } else {
+        // 使用智能填充
+        inpaintWatermarkArea(imageData, scaledArea, intensity);
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+    return tempCanvas;
+}
+
+// 模糊填充水印区域 - 使用周边像素直接覆盖
+function blurWatermarkArea(imageData, area, intensity) {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+
+    // 强度控制迭代次数和采样范围
+    // 强度1-10，对应迭代次数从area的50%到150%
+    const iterationFactor = 0.5 + (intensity / 10);
+    const maxIterations = Math.ceil(Math.max(area.width, area.height) * iterationFactor);
+
+    // 采样半径随强度增加
+    const sampleRadius = Math.min(intensity, 5);
+
+    for (let iter = 0; iter < maxIterations; iter++) {
+        // 当前需要填充的像素
+        const toFill = [];
+
+        for (let y = area.y; y < area.y + area.height; y++) {
+            for (let x = area.x; x < area.x + area.width; x++) {
+                // 在更大范围内寻找相邻像素
+                const validNeighbors = [];
+
+                for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
+                    for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+
+                        const nx = x + dx;
+                        const ny = y + dy;
+
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+                        const isInArea = (nx >= area.x && nx < area.x + area.width &&
+                                         ny >= area.y && ny < area.y + area.height);
+
+                        if (!isInArea) {
+                            // 计算距离权重
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            const weight = 1 / (1 + dist);
+                            validNeighbors.push({ x: nx, y: ny, weight: weight });
+                        }
+                    }
+                }
+
+                if (validNeighbors.length > 0) {
+                    toFill.push({ x, y, neighbors: validNeighbors });
+                }
+            }
+        }
+
+        // 填充这一层的像素
+        for (const pixel of toFill) {
+            let r = 0, g = 0, b = 0, totalWeight = 0;
+
+            for (const neighbor of pixel.neighbors) {
+                const idx = (neighbor.y * width + neighbor.x) * 4;
+                r += data[idx] * neighbor.weight;
+                g += data[idx + 1] * neighbor.weight;
+                b += data[idx + 2] * neighbor.weight;
+                totalWeight += neighbor.weight;
+            }
+
+            if (totalWeight > 0) {
+                const idx = (pixel.y * width + pixel.x) * 4;
+                data[idx] = Math.round(r / totalWeight);
+                data[idx + 1] = Math.round(g / totalWeight);
+                data[idx + 2] = Math.round(b / totalWeight);
+                data[idx + 3] = 255;
+            }
+        }
+
+        // 强度越高，每次缩小的步长越小，填充更细致
+        const shrinkStep = Math.max(1, Math.ceil(3 - intensity / 5));
+        area = {
+            x: area.x + shrinkStep,
+            y: area.y + shrinkStep,
+            width: Math.max(0, area.width - shrinkStep * 2),
+            height: Math.max(0, area.height - shrinkStep * 2)
+        };
+
+        if (area.width <= 0 || area.height <= 0) break;
+    }
+}
+
+// 智能修复水印区域 - 使用纹理合成和边缘扩散
+function inpaintWatermarkArea(imageData, area, intensity) {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+
+    // 创建一个副本用于读取
+    const original = new Uint8ClampedArray(data);
+
+    // 强度影响迭代次数
+    const iterationFactor = 0.3 + (intensity / 10);
+    const maxIterations = Math.ceil(Math.max(area.width, area.height) * iterationFactor);
+
+    // 强度影响采样范围
+    const sampleRadius = Math.min(1 + intensity, 10);
+
+    for (let iter = 0; iter < maxIterations; iter++) {
+        for (let y = area.y; y < area.y + area.height; y++) {
+            for (let x = area.x; x < area.x + area.width; x++) {
+                const idx = (y * width + x) * 4;
+
+                // 收集相邻的非水印区域像素
+                const samples = [];
+
+                // 在更大范围内采样
+                for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
+                    for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+
+                        const nx = x + dx;
+                        const ny = y + dy;
+
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+                        // 检查相邻像素是否在水印区域外
+                        const isOutside = (nx < area.x || nx >= area.x + area.width ||
+                                          ny < area.y || ny >= area.y + area.height);
+
+                        if (isOutside) {
+                            const nidx = (ny * width + nx) * 4;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            const weight = 1 / (1 + dist);
+
+                            samples.push({
+                                r: original[nidx],
+                                g: original[nidx + 1],
+                                b: original[nidx + 2],
+                                weight: weight
+                            });
+                        }
+                    }
+                }
+
+                // 如果有相邻的非水印像素，用加权平均值填充
+                if (samples.length > 0) {
+                    let r = 0, g = 0, b = 0, totalWeight = 0;
+
+                    for (const sample of samples) {
+                        r += sample.r * sample.weight;
+                        g += sample.g * sample.weight;
+                        b += sample.b * sample.weight;
+                        totalWeight += sample.weight;
+                    }
+
+                    data[idx] = Math.round(r / totalWeight);
+                    data[idx + 1] = Math.round(g / totalWeight);
+                    data[idx + 2] = Math.round(b / totalWeight);
+                    data[idx + 3] = 255;
+                }
+            }
+        }
+
+        // 更新原始数据副本
+        original.set(data);
+
+        // 强度越高，每次缩小越少
+        const shrinkStep = Math.max(1, Math.ceil(3 - intensity / 5));
+        area = {
+            x: area.x + shrinkStep,
+            y: area.y + shrinkStep,
+            width: Math.max(0, area.width - shrinkStep * 2),
+            height: Math.max(0, area.height - shrinkStep * 2)
+        };
+
+        if (area.width <= 0 || area.height <= 0) break;
+    }
+
+    // 强度越高，平滑程度越大
+    const smoothRadius = Math.min(Math.ceil(intensity / 3), 3);
+    const smoothArea = {
+        x: Math.max(0, area.x - smoothRadius * 3),
+        y: Math.max(0, area.y - smoothRadius * 3),
+        width: Math.min(width, area.width + smoothRadius * 6),
+        height: Math.min(height, area.height + smoothRadius * 6)
+    };
+
+    if (smoothRadius > 0) {
+        const smoothed = new Uint8ClampedArray(data);
+
+        for (let y = smoothArea.y; y < smoothArea.y + smoothArea.height; y++) {
+            for (let x = smoothArea.x; x < smoothArea.x + smoothArea.width; x++) {
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+
+                let r = 0, g = 0, b = 0, count = 0;
+
+                for (let dy = -smoothRadius; dy <= smoothRadius; dy++) {
+                    for (let dx = -smoothRadius; dx <= smoothRadius; dx++) {
+                        const nx = x + dx;
+                        const ny = y + dy;
+
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                            const nidx = (ny * width + nx) * 4;
+                            r += data[nidx];
+                            g += data[nidx + 1];
+                            b += data[nidx + 2];
+                            count++;
+                        }
+                    }
+                }
+
+                const idx = (y * width + x) * 4;
+                smoothed[idx] = Math.round(r / count);
+                smoothed[idx + 1] = Math.round(g / count);
+                smoothed[idx + 2] = Math.round(b / count);
+            }
+        }
+
+        // 应用平滑结果
+        data.set(smoothed);
+    }
+}
+
+// 原图画布上选择水印区域
+let startX, startY;
+originalCanvas.addEventListener('mousedown', function(e) {
+    if (!isSelectingWatermark) return;
+
+    const rect = originalCanvas.getBoundingClientRect();
+    startX = (e.clientX - rect.left) * (originalCanvas.width / rect.width);
+    startY = (e.clientY - rect.top) * (originalCanvas.height / rect.height);
+});
+
+originalCanvas.addEventListener('mouseup', function(e) {
+    if (!isSelectingWatermark) return;
+
+    const rect = originalCanvas.getBoundingClientRect();
+    const endX = (e.clientX - rect.left) * (originalCanvas.width / rect.width);
+    const endY = (e.clientY - rect.top) * (originalCanvas.height / rect.height);
+
+    watermarkArea = {
+        x: Math.round(Math.min(startX, endX)),
+        y: Math.round(Math.min(startY, endY)),
+        width: Math.round(Math.abs(endX - startX)),
+        height: Math.round(Math.abs(endY - startY))
+    };
+
+    isSelectingWatermark = false;
+
+    // 显示微调控件
+    document.getElementById('watermarkAreaAdjust').style.display = 'block';
+
+    // 更新显示
+    updateWatermarkAreaDisplay();
+
+    alert(`已选择区域：${watermarkArea.width} x ${watermarkArea.height}\n可使用下方按钮微调位置和大小`);
+    debounceAutoProcess();
+});
+

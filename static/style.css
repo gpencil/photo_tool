@@ -128,6 +128,7 @@ canvas {
     background: white;
     margin: 10px 0;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: crosshair;
 }
 
 .image-info {
@@ -196,6 +197,25 @@ canvas {
     font-size: 1em;
 }
 
+.control-item input[type="text"] {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    width: 100%;
+    font-size: 0.95em;
+}
+
+.control-item input[type="file"] {
+    font-size: 0.85em;
+    padding: 5px;
+    width: 100%;
+}
+
+.control-item input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
 .size-inputs {
     display: flex;
     align-items: center;
@@ -245,6 +265,26 @@ canvas {
 .btn-success {
     background: #28a745;
     color: white;
+}
+
+.btn-adjust {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.85em;
+    cursor: pointer;
+    background: white;
+    transition: all 0.2s;
+}
+
+.btn-adjust:hover {
+    background: #f0f0f0;
+    border-color: #667eea;
+    transform: translateY(-1px);
+}
+
+.btn-adjust:active {
+    transform: translateY(0);
 }
 
 .btn:disabled {
