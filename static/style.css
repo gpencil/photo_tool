@@ -117,6 +117,13 @@ h3 {
     border-radius: 10px;
     padding: 15px;
     text-align: center;
+    position: relative;
+}
+
+/* 裁剪遮罩层 */
+.crop-overlay {
+    position: relative;
+    display: inline-block;
 }
 
 canvas {
@@ -128,8 +135,44 @@ canvas {
     background: white;
     margin: 10px 0;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+canvas.selecting {
     cursor: crosshair;
 }
+
+/* 裁剪框样式 */
+.crop-box {
+    position: absolute;
+    border: 2px dashed #667eea;
+    background: rgba(102, 126, 234, 0.1);
+    pointer-events: auto;
+    cursor: move;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+}
+
+/* 裁剪框控制点 */
+.crop-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #667eea;
+    border: 2px solid white;
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+.crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+.crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+.crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+.crop-handle.n { top: -6px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.crop-handle.s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.crop-handle.w { top: 50%; left: -6px; transform: translateY(-50%); cursor: w-resize; }
+.crop-handle.e { top: 50%; right: -6px; transform: translateY(-50%); cursor: e-resize; }
 
 .image-info {
     color: #666;

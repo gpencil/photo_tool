@@ -149,6 +149,48 @@
                 </div>
             </div>
 
+            <!-- 裁剪功能 -->
+            <div class="control-group">
+                <h3>✂️ 裁剪</h3>
+                <div class="control-item">
+                    <label>
+                        <input type="checkbox" id="enableCrop">
+                        启用裁剪
+                    </label>
+                </div>
+                <div class="control-item">
+                    <label>裁剪模式:</label>
+                    <select id="cropMode">
+                        <option value="free">自由裁剪</option>
+                        <option value="16:9">16:9</option>
+                        <option value="4:3">4:3</option>
+                        <option value="1:1">1:1 (正方形)</option>
+                        <option value="9:16">9:16 (竖屏)</option>
+                        <option value="3:4">3:4 (竖版)</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>选择区域:</label>
+                    <button id="selectCropArea" class="btn btn-secondary" style="margin-top: 5px;">框选裁剪区域</button>
+                    <p style="font-size: 0.85em; color: #666; margin-top: 5px;">点击按钮后在原图上拖拽选择裁剪区域</p>
+                </div>
+                <div class="control-item" id="cropAreaInfo" style="display: none;">
+                    <label>当前区域:</label>
+                    <span id="cropAreaText" style="font-size: 0.9em; color: #667eea; font-weight: 600;"></span>
+                </div>
+                <div class="control-item" id="cropAreaAdjust" style="display: none;">
+                    <label>区域微调:</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px;">
+                        <button id="cropMoveUp" class="btn-adjust">↑ 上移</button>
+                        <button id="cropMoveDown" class="btn-adjust">↓ 下移</button>
+                        <button id="cropMoveLeft" class="btn-adjust">← 左移</button>
+                        <button id="cropMoveRight" class="btn-adjust">→ 右移</button>
+                        <button id="cropExpand" class="btn-adjust">+ 放大</button>
+                        <button id="cropShrink" class="btn-adjust">- 缩小</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 去除水印 -->
             <div class="control-group">
                 <h3>🧹 去除水印</h3>

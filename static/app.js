@@ -1,3 +1,5 @@
+console.log('app.js 开始加载');
+
 // 全局变量
 let originalImage = null;
 let originalCanvas = document.getElementById('originalCanvas');
@@ -8,6 +10,18 @@ let autoProcessTimer = null;
 let watermarkImageObj = null;
 let watermarkArea = null;
 let isSelectingWatermark = false;
+
+// 裁剪相关变量
+let cropArea = null;
+let isSelectingCrop = false;
+let cropBoxElement = null;
+let cropHandles = [];
+let isDraggingCrop = false;
+let isResizingCrop = false;
+let activeHandle = null;
+let dragStartX = 0;
+let dragStartY = 0;
+let cropStartArea = null;
 
 // DOM 元素
 const imageInput = document.getElementById('imageInput');
@@ -125,6 +139,125 @@ document.getElementById('keepRatio').addEventListener('change', debounceAutoProc
 
 // 水印控件监听
 document.getElementById('enableWatermark').addEventListener('change', debounceAutoProcess);
+
+// 裁剪控件监听
+console.log('正在设置裁剪事件监听器...');
+const enableCropCheckbox = document.getElementById('enableCrop');
+console.log('enableCrop 元素:', enableCropCheckbox);
+
+enableCropCheckbox.addEventListener('change', function() {
+    console.log('enableCrop 状态改变，当前值:', this.checked);
+    if (this.checked) {
+        console.log('启用裁剪');
+        document.getElementById('enableRemoveWatermark').checked = false;
+        // 创建默认裁剪框
+        createDefaultCropArea();
+    } else {
+        console.log('禁用裁剪');
+        clearCropBox();
+        cropArea = null;
+        document.getElementById('cropAreaInfo').style.display = 'none';
+        document.getElementById('cropAreaAdjust').style.display = 'none';
+        // 清除裁剪区域显示
+        displayOriginalImage();
+    }
+    debounceAutoProcess();
+});
+
+document.getElementById('cropMode').addEventListener('change', function() {
+    if (document.getElementById('enableCrop').checked && originalImage) {
+        // 根据新模式重新创建裁剪区域
+        createDefaultCropArea();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('selectCropArea').addEventListener('click', function() {
+    if (!originalImage) {
+        alert('请先上传图片！');
+        return;
+    }
+    clearCropBox();
+    isSelectingCrop = true;
+    originalCanvas.classList.add('selecting');
+    alert('请在原图上拖拽鼠标框选裁剪区域');
+});
+
+// 裁剪区域微调按钮
+document.getElementById('cropMoveUp').addEventListener('click', function() {
+    if (cropArea) {
+        cropArea.y = Math.max(0, cropArea.y - 5);
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('cropMoveDown').addEventListener('click', function() {
+    if (cropArea && originalImage) {
+        cropArea.y = Math.min(originalImage.height - cropArea.height, cropArea.y + 5);
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('cropMoveLeft').addEventListener('click', function() {
+    if (cropArea) {
+        cropArea.x = Math.max(0, cropArea.x - 5);
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('cropMoveRight').addEventListener('click', function() {
+    if (cropArea && originalImage) {
+        cropArea.x = Math.min(originalImage.width - cropArea.width, cropArea.x + 5);
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('cropExpand').addEventListener('click', function() {
+    if (cropArea && originalImage) {
+        const mode = document.getElementById('cropMode').value;
+        const scale = mode !== 'free' ? getScaleFactor(mode) : null;
+
+        if (scale) {
+            // 按比例缩放
+            const newWidth = Math.min(originalImage.width - cropArea.x, cropArea.width + 20);
+            const newHeight = Math.round(newWidth / scale);
+            if (cropArea.y + newHeight <= originalImage.height) {
+                cropArea.width = newWidth;
+                cropArea.height = newHeight;
+            }
+        } else {
+            const newWidth = Math.min(originalImage.width - cropArea.x, cropArea.width + 10);
+            const newHeight = Math.min(originalImage.height - cropArea.y, cropArea.height + 10);
+            cropArea.width = newWidth;
+            cropArea.height = newHeight;
+        }
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
+
+document.getElementById('cropShrink').addEventListener('click', function() {
+    if (cropArea) {
+        const mode = document.getElementById('cropMode').value;
+        const scale = mode !== 'free' ? getScaleFactor(mode) : null;
+
+        if (scale) {
+            const newWidth = Math.max(50, cropArea.width - 20);
+            const newHeight = Math.round(newWidth / scale);
+            cropArea.width = newWidth;
+            cropArea.height = newHeight;
+        } else {
+            cropArea.width = Math.max(50, cropArea.width - 10);
+            cropArea.height = Math.max(50, cropArea.height - 10);
+        }
+        updateCropAreaDisplay();
+        debounceAutoProcess();
+    }
+});
 document.getElementById('watermarkType').addEventListener('change', function() {
     if (this.value === 'text') {
         document.getElementById('watermarkTextGroup').style.display = 'block';
@@ -263,6 +396,11 @@ imageInput.addEventListener('change', function(e) {
                 document.getElementById('width').value = img.width;
                 document.getElementById('height').value = img.height;
 
+                // 如果裁剪已启用，创建默认裁剪区域
+                if (document.getElementById('enableCrop').checked) {
+                    createDefaultCropArea();
+                }
+
                 // 上传后自动触发第一次处理
                 debounceAutoProcess();
             };
@@ -371,7 +509,21 @@ function processImage() {
 
 // 内部处理函数
 function processImageInternal() {
-    // 第一步：调整尺寸
+    // 第一步：裁剪（如果启用）
+    let sourceImage = originalImage;
+    if (document.getElementById('enableCrop').checked && cropArea) {
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = cropArea.width;
+        cropCanvas.height = cropArea.height;
+        const cropCtx = cropCanvas.getContext('2d');
+        cropCtx.drawImage(originalImage,
+            cropArea.x, cropArea.y, cropArea.width, cropArea.height,
+            0, 0, cropArea.width, cropArea.height
+        );
+        sourceImage = cropCanvas;
+    }
+
+    // 第二步：调整尺寸
     let tempCanvas = document.createElement('canvas');
     let tempCtx = tempCanvas.getContext('2d');
 
@@ -379,14 +531,14 @@ function processImageInternal() {
 
     if (resizeMode === 'percent') {
         const scale = scaleSlider.value / 100;
-        tempCanvas.width = originalImage.width * scale;
-        tempCanvas.height = originalImage.height * scale;
+        tempCanvas.width = sourceImage.width * scale;
+        tempCanvas.height = sourceImage.height * scale;
     } else {
         tempCanvas.width = parseInt(document.getElementById('width').value);
         tempCanvas.height = parseInt(document.getElementById('height').value);
     }
 
-    tempCtx.drawImage(originalImage, 0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(sourceImage, 0, 0, tempCanvas.width, tempCanvas.height);
 
     // 第二步：应用滤镜和调整
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
@@ -1005,6 +1157,448 @@ originalCanvas.addEventListener('mouseup', function(e) {
     updateWatermarkAreaDisplay();
 
     alert(`已选择区域：${watermarkArea.width} x ${watermarkArea.height}\n可使用下方按钮微调位置和大小`);
+    debounceAutoProcess();
+});
+
+// ========== 裁剪功能相关函数 ==========
+
+// 获取宽高比因子
+function getScaleFactor(mode) {
+    const ratios = {
+        '16:9': 16 / 9,
+        '4:3': 4 / 3,
+        '1:1': 1,
+        '9:16': 9 / 16,
+        '3:4': 3 / 4
+    };
+    return ratios[mode] || null;
+}
+
+// 根据比例调整裁剪区域
+function adjustCropAreaToRatio(mode) {
+    if (!cropArea || !originalImage) return;
+
+    if (mode === 'free') return;
+
+    const ratio = getScaleFactor(mode);
+    if (!ratio) return;
+
+    // 根据当前宽度计算高度
+    let newWidth = cropArea.width;
+    let newHeight = Math.round(newWidth / ratio);
+
+    // 如果超出边界，根据高度计算宽度
+    if (cropArea.y + newHeight > originalImage.height) {
+        newHeight = Math.min(cropArea.height, originalImage.height - cropArea.y);
+        newWidth = Math.round(newHeight * ratio);
+    }
+
+    cropArea.width = Math.min(newWidth, originalImage.width - cropArea.x);
+    cropArea.height = Math.round(cropArea.width / ratio);
+}
+
+// 清除裁剪框
+function clearCropBox() {
+    if (cropBoxElement) {
+        cropBoxElement.remove();
+        cropBoxElement = null;
+    }
+    cropHandles = [];
+    isDraggingCrop = false;
+    isResizingCrop = false;
+    activeHandle = null;
+}
+
+// 创建默认裁剪区域
+function createDefaultCropArea() {
+    console.log('创建默认裁剪区域');
+    if (!originalImage) {
+        alert('请先上传图片！');
+        document.getElementById('enableCrop').checked = false;
+        return;
+    }
+
+    const mode = document.getElementById('cropMode').value;
+    const ratio = getScaleFactor(mode);
+    const padding = 50; // 边距
+
+    let cropWidth, cropHeight, cropX, cropY;
+
+    if (ratio) {
+        // 按比例计算裁剪区域
+        const imgRatio = originalImage.width / originalImage.height;
+
+        if (imgRatio > ratio) {
+            // 图片更宽，以高度为准
+            cropHeight = originalImage.height - padding * 2;
+            cropWidth = Math.round(cropHeight * ratio);
+            cropX = Math.round((originalImage.width - cropWidth) / 2);
+            cropY = padding;
+        } else {
+            // 图片更高，以宽度为准
+            cropWidth = originalImage.width - padding * 2;
+            cropHeight = Math.round(cropWidth / ratio);
+            cropX = padding;
+            cropY = Math.round((originalImage.height - cropHeight) / 2);
+        }
+    } else {
+        // 自由裁剪，默认留边距
+        cropWidth = originalImage.width - padding * 2;
+        cropHeight = originalImage.height - padding * 2;
+        cropX = padding;
+        cropY = padding;
+    }
+
+    cropArea = {
+        x: cropX,
+        y: cropY,
+        width: cropWidth,
+        height: cropHeight
+    };
+
+    console.log('裁剪区域已设置:', cropArea);
+    updateCropAreaDisplay();
+}
+
+// 更新裁剪区域显示
+function updateCropAreaDisplay() {
+    if (!cropArea || !originalImage) return;
+
+    // 显示裁剪区域信息
+    document.getElementById('cropAreaInfo').style.display = 'block';
+    document.getElementById('cropAreaAdjust').style.display = 'block';
+    document.getElementById('cropAreaText').textContent =
+        `位置: (${cropArea.x}, ${cropArea.y}) | 大小: ${cropArea.width} x ${cropArea.height}`;
+
+    // 重绘原图并显示裁剪框
+    displayOriginalImage();
+    drawCropBoxOnCanvas();
+
+    // 创建可拖动的裁剪框
+    createInteractiveCropBox();
+}
+
+// 在画布上绘制裁剪框
+function drawCropBoxOnCanvas() {
+    if (!cropArea) return;
+
+    console.log('绘制裁剪框:', cropArea);
+
+    originalCtx.save();
+
+    // 绘制半透明遮罩
+    originalCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    originalCtx.fillRect(0, 0, originalCanvas.width, originalCanvas.height);
+
+    // 清除裁剪区域的遮罩
+    originalCtx.clearRect(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+
+    // 重新绘制裁剪区域的图片
+    originalCtx.drawImage(originalImage,
+        cropArea.x, cropArea.y, cropArea.width, cropArea.height,
+        cropArea.x, cropArea.y, cropArea.width, cropArea.height
+    );
+
+    // 绘制裁剪边框
+    originalCtx.strokeStyle = '#667eea';
+    originalCtx.lineWidth = 2;
+    originalCtx.setLineDash([5, 5]);
+    originalCtx.strokeRect(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+
+    originalCtx.restore();
+}
+
+// 创建可交互的裁剪框
+function createInteractiveCropBox() {
+    console.log('创建可交互的裁剪框');
+    clearCropBox();
+
+    const previewBox = originalCanvas.parentElement;
+    console.log('previewBox:', previewBox);
+    console.log('originalCanvas.offsetLeft:', originalCanvas.offsetLeft);
+    console.log('originalCanvas.offsetTop:', originalCanvas.offsetTop);
+    console.log('originalCanvas.offsetWidth:', originalCanvas.offsetWidth);
+    console.log('originalCanvas.offsetHeight:', originalCanvas.offsetHeight);
+    console.log('cropArea:', cropArea);
+
+    // 计算缩放比例（canvas显示尺寸 vs 实际尺寸）
+    const scaleX = originalCanvas.offsetWidth / originalCanvas.width;
+    const scaleY = originalCanvas.offsetHeight / originalCanvas.height;
+    console.log('scaleX:', scaleX, 'scaleY:', scaleY);
+
+    const left = originalCanvas.offsetLeft + cropArea.x * scaleX;
+    const top = originalCanvas.offsetTop + cropArea.y * scaleY;
+    const width = cropArea.width * scaleX;
+    const height = cropArea.height * scaleY;
+
+    console.log('裁剪框位置: left:', left, 'top:', top, 'width:', width, 'height:', height);
+
+    cropBoxElement = document.createElement('div');
+    cropBoxElement.className = 'crop-box';
+    cropBoxElement.style.left = left + 'px';
+    cropBoxElement.style.top = top + 'px';
+    cropBoxElement.style.width = width + 'px';
+    cropBoxElement.style.height = height + 'px';
+    cropBoxElement.style.position = 'absolute';
+    cropBoxElement.style.zIndex = '10';
+
+    console.log('cropBoxElement 创建完成:', cropBoxElement);
+
+    // 添加控制点
+    const handles = ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'];
+    handles.forEach(pos => {
+        const handle = document.createElement('div');
+        handle.className = `crop-handle ${pos}`;
+        handle.dataset.position = pos;
+        cropBoxElement.appendChild(handle);
+        cropHandles.push(handle);
+    });
+
+    console.log('添加了', cropHandles.length, '个控制点');
+
+    previewBox.appendChild(cropBoxElement);
+    console.log('裁剪框已添加到 previewBox');
+
+    // 添加事件监听
+    setupCropBoxEvents();
+    console.log('事件监听器已设置');
+}
+
+// 设置裁剪框事件
+function setupCropBoxEvents() {
+    if (!cropBoxElement) return;
+
+    // 裁剪框拖动
+    cropBoxElement.addEventListener('mousedown', function(e) {
+        console.log('裁剪框 mousedown, target:', e.target.className);
+        if (e.target.classList.contains('crop-handle')) {
+            console.log('点击的是控制点，不处理拖动');
+            return;
+        }
+
+        console.log('开始拖动裁剪框');
+        isDraggingCrop = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        cropStartArea = { ...cropArea };
+        e.preventDefault();
+    });
+
+    // 控制点拖动
+    cropHandles.forEach(handle => {
+        handle.addEventListener('mousedown', function(e) {
+            isResizingCrop = true;
+            activeHandle = e.target.dataset.position;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            cropStartArea = { ...cropArea };
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    });
+
+    // 全局鼠标移动和释放
+    document.addEventListener('mousemove', handleCropMouseMove);
+    document.addEventListener('mouseup', handleCropMouseUp);
+}
+
+// 处理裁剪框鼠标移动
+function handleCropMouseMove(e) {
+    if ((!isDraggingCrop && !isResizingCrop) || !cropStartArea) {
+        // console.log('跳过 mousemove, isDraggingCrop:', isDraggingCrop, 'isResizingCrop:', isResizingCrop);
+        return;
+    }
+
+    // console.log('处理 mousemove, isDraggingCrop:', isDraggingCrop);
+
+    const canvasRect = originalCanvas.getBoundingClientRect();
+    const scaleX = originalCanvas.width / canvasRect.width;
+    const scaleY = originalCanvas.height / canvasRect.height;
+
+    const deltaX = (e.clientX - dragStartX) * scaleX;
+    const deltaY = (e.clientY - dragStartY) * scaleY;
+
+    const mode = document.getElementById('cropMode').value;
+    const ratio = getScaleFactor(mode);
+
+    if (isDraggingCrop) {
+        // 移动整个裁剪框
+        let newX = cropStartArea.x + deltaX;
+        let newY = cropStartArea.y + deltaY;
+
+        // 边界检查
+        newX = Math.max(0, Math.min(newX, originalImage.width - cropArea.width));
+        newY = Math.max(0, Math.min(newY, originalImage.height - cropArea.height));
+
+        cropArea.x = Math.round(newX);
+        cropArea.y = Math.round(newY);
+        // console.log('移动裁剪框到:', cropArea.x, cropArea.y);
+    } else if (isResizingCrop) {
+        // 调整裁剪框大小
+        let newX = cropStartArea.x;
+        let newY = cropStartArea.y;
+        let newWidth = cropStartArea.width;
+        let newHeight = cropStartArea.height;
+
+        switch (activeHandle) {
+            case 'se':
+                newWidth = cropStartArea.width + deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height + deltaY;
+                break;
+            case 'sw':
+                newX = cropStartArea.x + deltaX;
+                newWidth = cropStartArea.width - deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height + deltaY;
+                break;
+            case 'ne':
+                newY = cropStartArea.y + deltaY;
+                newWidth = cropStartArea.width + deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height - deltaY;
+                if (ratio) newY = cropStartArea.y + cropStartArea.height - newHeight;
+                break;
+            case 'nw':
+                newX = cropStartArea.x + deltaX;
+                newY = cropStartArea.y + deltaY;
+                newWidth = cropStartArea.width - deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height - deltaY;
+                if (ratio) newY = cropStartArea.y + cropStartArea.height - newHeight;
+                break;
+            case 'n':
+                if (ratio) {
+                    newWidth = cropStartArea.width - deltaY * ratio;
+                    newX = cropStartArea.x + (cropStartArea.width - newWidth) / 2;
+                }
+                newY = cropStartArea.y + deltaY;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height - deltaY;
+                break;
+            case 's':
+                if (ratio) {
+                    newWidth = cropStartArea.width + deltaY * ratio;
+                    newX = cropStartArea.x - (newWidth - cropStartArea.width) / 2;
+                }
+                newWidth = ratio ? newWidth : cropStartArea.width;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height + deltaY;
+                break;
+            case 'w':
+                newX = cropStartArea.x + deltaX;
+                newWidth = cropStartArea.width - deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height;
+                break;
+            case 'e':
+                newWidth = cropStartArea.width + deltaX;
+                newHeight = ratio ? newWidth / ratio : cropStartArea.height;
+                break;
+        }
+
+        // 最小尺寸限制
+        if (newWidth >= 50 && newHeight >= 50) {
+            // 边界检查
+            if (newX >= 0 && newY >= 0 &&
+                newX + newWidth <= originalImage.width &&
+                newY + newHeight <= originalImage.height) {
+                cropArea.x = Math.round(newX);
+                cropArea.y = Math.round(newY);
+                cropArea.width = Math.round(newWidth);
+                cropArea.height = Math.round(newHeight);
+            }
+        }
+    }
+
+    updateCropAreaDisplay();
+}
+
+// 处理裁剪框鼠标释放
+function handleCropMouseUp() {
+    if (isDraggingCrop || isResizingCrop) {
+        isDraggingCrop = false;
+        isResizingCrop = false;
+        activeHandle = null;
+        cropStartArea = null;
+        debounceAutoProcess();
+    }
+}
+
+// 裁剪选择区域的鼠标事件
+let cropStartX, cropStartY;
+
+originalCanvas.addEventListener('mousedown', function(e) {
+    if (!isSelectingCrop) return;
+
+    const rect = originalCanvas.getBoundingClientRect();
+    cropStartX = (e.clientX - rect.left) * (originalCanvas.width / rect.width);
+    cropStartY = (e.clientY - rect.top) * (originalCanvas.height / rect.height);
+
+    // 创建临时裁剪框
+    cropArea = {
+        x: cropStartX,
+        y: cropStartY,
+        width: 0,
+        height: 0
+    };
+});
+
+originalCanvas.addEventListener('mousemove', function(e) {
+    if (!isSelectingCrop || !cropArea) return;
+
+    const rect = originalCanvas.getBoundingClientRect();
+    const currentX = (e.clientX - rect.left) * (originalCanvas.width / rect.width);
+    const currentY = (e.clientY - rect.top) * (originalCanvas.height / rect.height);
+
+    const mode = document.getElementById('cropMode').value;
+    const ratio = getScaleFactor(mode);
+
+    let width = Math.abs(currentX - cropStartX);
+    let height = Math.abs(currentY - cropStartY);
+    let x = Math.min(cropStartX, currentX);
+    let y = Math.min(cropStartY, currentY);
+
+    if (ratio) {
+        // 按比例调整
+        if (width / height > ratio) {
+            height = width / ratio;
+        } else {
+            width = height * ratio;
+        }
+    }
+
+    // 边界检查
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + width > originalImage.width) width = originalImage.width - x;
+    if (y + height > originalImage.height) height = originalImage.height - y;
+
+    cropArea = {
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height)
+    };
+
+    displayOriginalImage();
+    drawCropBoxOnCanvas();
+});
+
+originalCanvas.addEventListener('mouseup', function(e) {
+    if (!isSelectingCrop || !cropArea) return;
+
+    isSelectingCrop = false;
+    originalCanvas.classList.remove('selecting');
+
+    // 确保最小尺寸
+    if (cropArea.width < 50 || cropArea.height < 50) {
+        alert('裁剪区域太小，请重新选择！');
+        clearCropBox();
+        cropArea = null;
+        displayOriginalImage();
+        return;
+    }
+
+    updateCropAreaDisplay();
+
+    const mode = document.getElementById('cropMode').value;
+    const modeText = mode === 'free' ? '自由裁剪' : mode;
+    alert(`已选择裁剪区域 (${modeText})：\n位置: (${cropArea.x}, ${cropArea.y})\n大小: ${cropArea.width} x ${cropArea.height}\n\n可拖动边框调整，或使用下方按钮微调`);
+
     debounceAutoProcess();
 });
 
